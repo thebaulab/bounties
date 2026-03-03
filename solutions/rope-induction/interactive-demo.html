@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoPE Transformer - Chris Wendler's Equations</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            line-height: 1.6;
+            padding: 2rem;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            font-size: 2rem;
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        .author {
+            text-align: center;
+            color: #64748b;
+            margin-bottom: 2rem;
+            font-style: italic;
+        }
+        
+        .math-box {
+            background: #111118;
+            border: 1px solid #2d2d44;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .math-box h2 {
+            color: #8b5cf6;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+        .math-content {
+            overflow-x: auto;
+            padding: 1rem 0;
+        }
+        
+        .input-section {
+            background: #1a1a2e;
+            border: 2px solid #8b5cf6;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.2rem;
+            background: #0a0a0f;
+            border: 2px solid #2d2d44;
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-family: monospace;
+        }
+        button {
+            width: 100%;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-size: 1.1rem;
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .results { display: none; }
+        .results.show { display: block; }
+        
+        .tensor-box {
+            background: #111118;
+            border: 1px solid #2d2d44;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .tensor-title {
+            color: #10b981;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .matrix {
+            display: grid;
+            gap: 1px;
+            margin: 0.5rem 0;
+        }
+        .matrix-cell {
+            background: #1a1a2e;
+            padding: 4px 8px;
+            text-align: center;
+            font-family: monospace;
+            font-size: 0.8rem;
+            border-radius: 3px;
+        }
+        
+        .attention-heatmap {
+            display: grid;
+            gap: 2px;
+            margin: 0.5rem 0;
+        }
+        .heat-cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            border-radius: 3px;
+            min-width: 35px;
+            min-height: 35px;
+        }
+        
+        .token-row {
+            display: flex;
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+            flex-wrap: wrap;
+        }
+        .token {
+            padding: 0.4rem 0.8rem;
+            background: #1a1a2e;
+            border: 1px solid #2d2d44;
+            border-radius: 6px;
+            font-family: monospace;
+            position: relative;
+        }
+        .token.pos { font-size: 0.7rem; color: #64748b; position: absolute; top: -8px; right: 2px; background: #0a0a0f; padding: 0 4px; }
+        
+        .step-box {
+            background: #0f172a;
+            border-left: 3px solid #8b5cf6;
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
+        .step-title { color: #8b5cf6; font-weight: bold; margin-bottom: 0.5rem; }
+        
+        .prediction-box {
+            background: #064e3b;
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            margin-top: 1rem;
+        }
+        .prediction-result {
+            font-size: 2rem;
+            color: #10b981;
+            font-weight: bold;
+        }
+        
+        .collapsible {
+            background: #1a1a2e;
+            border: none;
+            border-radius: 8px;
+            padding: 1rem;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            margin: 0.5rem 0;
+        }
+        .collapsible:hover { background: #2d2d44; }
+        .collapsible-content {
+            display: none;
+            padding: 1rem;
+            background: #111118;
+            border-radius: 8px;
+            margin-top: 0.5rem;
+        }
+        .collapsible-content.show { display: block; }
+
+        /* Math Reference Section */
+        .math-ref-section {
+            background: #0d1117;
+            border: 2px solid #8b5cf6;
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .math-ref-section h2 {
+            color: #8b5cf6;
+            font-size: 1.6rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .eq-group {
+            background: #111118;
+            border: 1px solid #2d2d44;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .eq-group h3 {
+            color: #ec4899;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #2d2d44;
+            padding-bottom: 0.5rem;
+        }
+        .eq-row {
+            margin: 1rem 0;
+            padding: 0.8rem 1rem;
+            background: #0a0a14;
+            border-radius: 8px;
+            border-left: 3px solid #8b5cf6;
+        }
+        .eq-row .eq-label {
+            color: #10b981;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 0.3rem;
+        }
+        .eq-row .eq-math {
+            margin: 0.5rem 0;
+            overflow-x: auto;
+        }
+        .intuition {
+            background: #1a1a2e;
+            border: 1px dashed #6366f1;
+            border-radius: 8px;
+            padding: 0.8rem 1rem;
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+            color: #a5b4fc;
+        }
+        .intuition strong {
+            color: #818cf8;
+        }
+        .intuition .why { color: #10b981; }
+        .intuition .what-if { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RoPE Transformer</h1>
+        <p class="author">Based on Chris Wendler's equations</p>
+        
+        <div class="math-box">
+            <h2>📐 RoPE Rotation Matrix</h2>
+            <div class="math-content">
+            $$R^{d}_{\Theta, m} = \begin{pmatrix}
+            \cos{m\theta_1} & -\sin{m\theta_1} & 0 & \cdots & 0 & 0 \\
+            \sin{m\theta_1} & \cos{m\theta_1} & 0 & \cdots & 0 & 0 \\
+            0 & 0 & \cos{m\theta_2} & \cdots & 0 & 0 \\
+            0 & 0 & \sin{m\theta_2} & \cdots & 0 & 0 \\
+            \vdots & \vdots & \vdots & \ddots & \vdots & \vdots \\
+            0 & 0 & 0 & \cdots & \cos{m\theta_{d/2}} & -\sin{m\theta_{d/2}} \\
+            0 & 0 & 0 & \cdots & \sin{m\theta_{d/2}} & \cos{m\theta_{d/2}} \\
+            \end{pmatrix}$$
+            <p style="margin-top:1rem;">Where <strong>θᵢ = 1 / (10000^(2i/d))</strong> and m is position</p>
+            </div>
+        </div>
+        
+        <div class="math-box">
+            <h2>🔑 Head 1: Previous Token Head</h2>
+            <div class="math-content">
+            $$W_k \, x = c = (1, 0, 1, 0, \ldots)^T \quad \text{(constant for all } x \text{)}$$
+            $$W_q = \alpha \, R_{\Theta, -1} \, W_k$$
+            $$q_m = \alpha \, R_{\Theta,m-1} \cdot c, \qquad k_n = R_{\Theta,n} \cdot c$$
+            $$q_m^T k_n = \alpha \sum_{i} \cos\!\big((n - m + 1)\,\theta_i\big) \;=\;
+            \begin{cases} \alpha \cdot d/2 & n = m{-}1 \\ < \alpha \cdot d/2 & n \neq m{-}1 \end{cases}$$
+            <p style="margin-top:1rem;">Diagonal attention: each position <em>m</em> attends maximally to position <em>m−1</em></p>
+            </div>
+        </div>
+        
+        <div class="math-box">
+            <h2>🧠 Head 2: Semantic Head (Rank-1)</h2>
+            <div class="math-content">
+            $$W_k^{(2)} = u_k v_k^T, \quad W_q^{(2)} = u_q v_q^T$$
+            $$q_m^T k_n = (u_q^T u_k) (v_q^T x_m) (v_k^T x_n)$$
+            <p style="margin-top:1rem;">Matches based on token semantics (repeating patterns)</p>
+            </div>
+        </div>
+        
+        <!-- ============================================================ -->
+        <!-- COMPLETE MATH REFERENCE                                       -->
+        <!-- ============================================================ -->
+        <button class="collapsible" onclick="toggle(this)" style="font-size:1.2rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);margin-bottom:1rem;">
+            ▶ Math Reference: Complete 2-Layer RoPE Transformer Equations
+        </button>
+        <div class="collapsible-content">
+        <div class="math-ref-section">
+            <h2>Complete 2-Layer RoPE Transformer</h2>
+            <p style="text-align:center;color:#64748b;margin-bottom:1.5rem;">
+                Every equation, explained with intuition. Based on Chris Wendler's construction.
+            </p>
+
+            <!-- ======== 1. TOKEN EMBEDDING ======== -->
+            <div class="eq-group">
+                <h3>1. Token Embedding</h3>
+
+                <div class="eq-row">
+                    <div class="eq-label">Token to vector mapping</div>
+                    <div class="eq-math">$$x_i = E[\text{token}_i] \in \mathbb{R}^d$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> Each token (character) is mapped to a dense vector of dimension \(d\).
+                        The embedding matrix \(E\) has one row per vocabulary item.<br>
+                        <span class="why"><strong>Why:</strong> Neural nets need continuous vectors, not discrete symbols.
+                        The embedding lets similar tokens have similar vectors (learned during training).</span><br>
+                        <span class="what-if"><strong>What if:</strong> If we used one-hot vectors instead, every token would be
+                        equally "far" from every other — no notion of similarity. Dense embeddings let the model
+                        generalize across similar tokens.</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">In this demo</div>
+                    <div class="eq-math">$$E[\text{token}_i]_j = \frac{1}{2}\sin\!\left(\text{idx}(i) \cdot \frac{\pi}{13} + 0.1j\right), \quad j = 0,\ldots,d{-}1$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> We use a deterministic sinusoidal embedding so every token gets a
+                        unique, reproducible vector. Different tokens get different frequency patterns.<br>
+                        <span class="why"><strong>Why:</strong> In a real transformer, \(E\) is learned. Here we use a fixed function
+                        so the demo is fully self-contained with no training step.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ======== 2. ROPE POSITION ENCODING ======== -->
+            <div class="eq-group">
+                <h3>2. RoPE — Rotary Position Embedding</h3>
+
+                <div class="eq-row">
+                    <div class="eq-label">Frequency schedule</div>
+                    <div class="eq-math">$$\theta_i = \frac{1}{10000^{\,2i/d}}, \quad i = 0, 1, \ldots, \tfrac{d}{2}{-}1$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> Each pair of dimensions rotates at a different frequency.
+                        Low-index dimensions rotate fast (high \(\theta\)); high-index dimensions rotate slowly.<br>
+                        <span class="why"><strong>Why:</strong> Multiple frequencies create a unique "fingerprint" for each position.
+                        Two positions can only match across ALL frequencies simultaneously if they are the same offset apart.
+                        This is like how a combination lock needs all tumblers aligned.</span><br>
+                        <span class="what-if"><strong>What if:</strong> If all frequencies were the same, positions that differ by
+                        \(2\pi/\theta\) would be indistinguishable — periodic aliasing.</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Rotation matrix at position m</div>
+                    <div class="eq-math">
+                    $$R_{\Theta,m} = \text{diag}\!\begin{pmatrix}
+                    \begin{bmatrix} \cos m\theta_0 & -\sin m\theta_0 \\ \sin m\theta_0 & \cos m\theta_0 \end{bmatrix},
+                    \;\ldots\;,
+                    \begin{bmatrix} \cos m\theta_{d/2-1} & -\sin m\theta_{d/2-1} \\ \sin m\theta_{d/2-1} & \cos m\theta_{d/2-1} \end{bmatrix}
+                    \end{pmatrix}$$
+                    </div>
+                    <div class="intuition">
+                        <strong>What:</strong> A block-diagonal matrix of \(d/2\) independent 2D rotations.
+                        Each 2D block rotates its pair of dimensions by angle \(m\theta_i\).<br>
+                        <span class="why"><strong>Why block-diagonal?</strong> It preserves norms (\(\|R_{\Theta,m} v\| = \|v\|\))
+                        and composes cleanly: \(R_{\Theta,a} \cdot R_{\Theta,b} = R_{\Theta,a+b}\).
+                        This composition property is the key to making relative position work!</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Key composition property</div>
+                    <div class="eq-math">$$R_{\Theta,m}^T \cdot R_{\Theta,n} = R_{\Theta,\,n-m}$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> When we compute \(q_m^T k_n\), the two position rotations collapse into a
+                        SINGLE rotation by the <em>relative</em> offset \(n - m\).<br>
+                        <span class="why"><strong>Why this matters:</strong> Attention scores depend only on the distance
+                        between tokens, not their absolute positions. Token at position 5 attending to
+                        position 3 gets the same geometric relationship as position 100 attending to 98.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ======== 3. LAYER 0 — PREVIOUS TOKEN HEAD ======== -->
+            <div class="eq-group">
+                <h3>3. Layer 0 — Previous Token Head</h3>
+                <p style="color:#94a3b8;margin-bottom:1rem;">
+                    Goal: each position \(m\) attends to position \(m{-}1\) with maximum weight.
+                </p>
+
+                <div class="eq-row">
+                    <div class="eq-label">Key weight matrix — constant output</div>
+                    <div class="eq-math">$$W_k \, x = (1, 0, 1, 0, \ldots, 1, 0)^T \quad \text{for ALL } x$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> \(W_k\) projects every token to the <em>same</em> vector \(c = (1,0,1,0,\ldots)\).
+                        The key carries NO information about token identity.<br>
+                        <span class="why"><strong>Why:</strong> We want attention to depend ONLY on position, not on what the
+                        token is. By making \(W_k x\) constant, the only distinguishing signal in
+                        \(k_n = R_{\Theta,n} \cdot c\) comes from the RoPE rotation at position \(n\).</span><br>
+                        <span class="what-if"><strong>What if W_k depended on the token?</strong> Then attention would mix
+                        positional and semantic signals. The head would no longer be a pure "previous position" detector.</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Keys with RoPE</div>
+                    <div class="eq-math">$$k_n = R_{\Theta,n} \cdot W_k \, x_n = R_{\Theta,n} \cdot c$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> Each key is the constant vector \(c\) rotated by position \(n\).
+                        Position 0's key is unrotated; position 1 is rotated by \(\theta_i\); position 2 by \(2\theta_i\); etc.
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Query weight matrix — the key equation</div>
+                    <div class="eq-math">$$\boxed{W_q = \alpha \cdot R_{\Theta,-1} \cdot W_k}$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> The query matrix is the key matrix, pre-rotated by \(-1\) step and scaled by \(\alpha\).<br>
+                        <span class="why"><strong>Why \(R_{\Theta,-1}\)?</strong> This introduces a "-1 offset" into the query.
+                        When RoPE adds the query's own position \(m\), the total rotation becomes \(m - 1\),
+                        which perfectly aligns with the key at position \(m - 1\). The \(-1\) is the "look back one step" instruction.</span><br>
+                        <span class="why"><strong>Why \(\alpha\)?</strong> Scaling amplifies the score difference between the matching
+                        position and non-matching positions. Larger \(\alpha\) → sharper attention → closer to a hard "select previous" operation.</span><br>
+                        <span class="what-if"><strong>What if we used \(R_{\Theta,-2}\)?</strong> Then position \(m\) would attend
+                        to \(m{-}2\), creating a "two tokens back" head instead!</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Queries with RoPE</div>
+                    <div class="eq-math">
+                    $$q_m = R_{\Theta,m} \cdot W_q \, x_m
+                    = R_{\Theta,m} \cdot \alpha \, R_{\Theta,-1} \cdot c
+                    = \alpha \cdot R_{\Theta,\,m-1} \cdot c$$
+                    </div>
+                    <div class="intuition">
+                        <strong>What:</strong> The rotations compose! \(R_{\Theta,m} \cdot R_{\Theta,-1} = R_{\Theta,m-1}\).
+                        So the query at position \(m\) looks like the key at position \(m{-}1\) (times \(\alpha\)).<br>
+                        <span class="why"><strong>Why this creates diagonal attention:</strong> \(q_m\) is essentially a rotated copy
+                        of \(c\) at angle \(m{-}1\), and \(k_n\) is a rotated copy of \(c\) at angle \(n\).
+                        They match best when \(n = m{-}1\).</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Attention scores — deriving the diagonal</div>
+                    <div class="eq-math">
+                    $$q_m^T k_n \;=\; \alpha \cdot c^T \, R_{\Theta,\,m-1}^T \, R_{\Theta,n} \, c
+                    \;=\; \alpha \cdot c^T \, R_{\Theta,\,n-m+1} \, c$$
+                    </div>
+                    <div class="eq-math">
+                    $$= \alpha \sum_{i=0}^{d/2-1} \cos\!\big((n - m + 1)\,\theta_i\big)$$
+                    </div>
+                    <div class="intuition">
+                        <strong>What:</strong> The score is a sum of cosines at different frequencies, all evaluated at the
+                        relative offset \(\Delta = n - m + 1\).<br>
+                        <span class="why"><strong>When \(n = m{-}1\):</strong> \(\Delta = 0\), every cosine equals 1, score = \(\alpha \cdot d/2\) (MAXIMUM).</span><br>
+                        <span class="why"><strong>When \(n \neq m{-}1\):</strong> \(\Delta \neq 0\), the cosines point in different directions
+                        and partially cancel. The sum is strictly less than \(d/2\). More frequencies → better cancellation → sharper peak.</span><br>
+                        <span class="what-if"><strong>Analogy:</strong> Think of \(d/2\) clock hands all pointing up at \(\Delta=0\).
+                        At any other \(\Delta\), they point in different directions and their vertical sum is smaller.</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">After softmax — the attention pattern</div>
+                    <div class="eq-math">
+                    $$\text{Attn}(m, n) = \text{softmax}_n\!\big(q_m^T k_n\big) \approx
+                    \begin{cases} \approx 1 & \text{if } n = m{-}1 \\ \approx 0 & \text{otherwise}\end{cases}$$
+                    </div>
+                    <div class="intuition">
+                        <strong>What:</strong> Softmax exponentiates the score gap. Since position \(m{-}1\) has the highest score
+                        by a margin proportional to \(\alpha\), it gets almost all the probability mass.<br>
+                        <span class="why"><strong>Result:</strong> A clear sub-diagonal band — each row puts ~100% attention on the previous position.</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Output — copies the previous token's value</div>
+                    <div class="eq-math">
+                    $$o_m^{(0)} = \sum_n \text{Attn}(m, n) \cdot v_n \;\approx\; v_{m-1}$$
+                    </div>
+                    <div class="intuition">
+                        <strong>What:</strong> Since attention concentrates on \(n = m{-}1\), the output at position \(m\)
+                        is approximately the value vector of the previous token.<br>
+                        <span class="why"><strong>Why this matters for induction:</strong> After this layer, position \(m\) now
+                        "knows" what token came before it. This information flows through the residual stream
+                        and is used by Layer 1 to complete the induction circuit.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ======== 4. LAYER 1 — SEMANTIC / INDUCTION HEAD ======== -->
+            <div class="eq-group">
+                <h3>4. Layer 1 — Semantic / Induction Head</h3>
+                <p style="color:#94a3b8;margin-bottom:1rem;">
+                    Goal: find previous occurrences of the current token and predict what followed them.
+                </p>
+
+                <div class="eq-row">
+                    <div class="eq-label">Rank-1 weight matrices</div>
+                    <div class="eq-math">$$W_k^{(1)} = u_k \, v_k^T, \qquad W_q^{(1)} = u_q \, v_q^T$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> Both key and query matrices are rank-1 (outer product of two vectors).
+                        This factorizes the computation into a "what to read" vector \(v\) and a "what to broadcast" vector \(u\).<br>
+                        <span class="why"><strong>Why rank-1?</strong> It makes the attention score decompose cleanly:
+                        \(q_m^T k_n\) becomes a product of two independent projections
+                        — one depending on the query token and one on the key token.</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Keys and queries</div>
+                    <div class="eq-math">$$k_n = u_k \cdot (v_k^T x_n), \qquad q_m = u_q \cdot (v_q^T x_m)$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> Each key/query is a fixed direction (\(u_k\) or \(u_q\)) scaled by how much
+                        the token projects onto the "reading" direction (\(v_k\) or \(v_q\)).<br>
+                        <span class="why"><strong>Why:</strong> \(v_k^T x_n\) is a scalar that captures "the semantic identity of token \(n\)".
+                        All keys point in the same direction \(u_k\) but with different magnitudes depending on the token.</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Attention score — factored form</div>
+                    <div class="eq-math">$$q_m^T k_n = \underbrace{(u_q^T u_k)}_{\text{constant}} \cdot \underbrace{(v_q^T x_m)}_{\text{query token}} \cdot \underbrace{(v_k^T x_n)}_{\text{key token}}$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> The score factors into three parts:
+                        (1) a global constant, (2) a query-side scalar, (3) a key-side scalar.<br>
+                        <span class="why"><strong>Why this enables semantic matching:</strong> If \(v_q = v_k\), then
+                        \(v_q^T x_m\) and \(v_k^T x_n\) are large for the same tokens, making identical tokens attend
+                        to each other strongly. This is "find tokens like me".</span><br>
+                        <span class="what-if"><strong>What if the matrix were full-rank?</strong> Then the score would be a general
+                        bilinear form \(x_m^T M x_n\), which could match ANY pair of tokens.
+                        Rank-1 constrains it to match tokens with the same projection — a simpler, more interpretable pattern.</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">The induction mechanism</div>
+                    <div class="eq-math">
+                    $$\text{Input: } \ldots A \; B \;\ldots\; A \;\; \underset{\uparrow}{\text{[predict here]}}$$
+                    $$\text{Layer 0 output at last } A\!: \text{carries info about token before } A \text{ (i.e., context)}$$
+                    $$\text{Layer 1: last } A \text{ matches first } A \;\Rightarrow\; \text{attend to position after first } A \;\Rightarrow\; \text{predict } B$$
+                    </div>
+                    <div class="intuition">
+                        <strong>The induction circuit in two steps:</strong><br>
+                        <strong>Step 1 (Layer 0):</strong> Previous-token head copies each token's predecessor into
+                        the residual stream. After Layer 0, position \(i\) knows "my previous token was ___".<br>
+                        <strong>Step 2 (Layer 1):</strong> The semantic head at the last position sees token \(A\),
+                        searches for earlier occurrences of \(A\), and attends to the position AFTER it.
+                        Whatever followed \(A\) before (\(B\)) becomes the prediction.<br>
+                        <span class="why"><strong>Why two layers?</strong> Layer 0 shifts information backward by one step.
+                        Layer 1 uses that shifted information to perform the pattern match.
+                        Neither layer alone can do induction — it requires the composition.</span><br>
+                        <span class="what-if"><strong>What if there's no repeated token?</strong> No induction pattern fires.
+                        The model falls back to unigram/positional statistics.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ======== 5. COMPLETE FORWARD PASS ======== -->
+            <div class="eq-group">
+                <h3>5. Complete Forward Pass</h3>
+                <p style="color:#94a3b8;margin-bottom:1rem;">
+                    Step-by-step from input tokens to prediction.
+                </p>
+
+                <div class="eq-row">
+                    <div class="eq-label">Step 1: Embed tokens</div>
+                    <div class="eq-math">$$h_i^{(0)} = E[\text{token}_i] \in \mathbb{R}^d$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> Convert each token to its embedding vector. This is the initial "residual stream" state.
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Step 2: Layer 0 — Previous Token Head</div>
+                    <div class="eq-math">
+                    $$k_n^{(0)} = R_{\Theta,n} \cdot c \qquad (\text{constant key})$$
+                    $$q_m^{(0)} = \alpha \cdot R_{\Theta,m-1} \cdot c$$
+                    $$A^{(0)}_{m,n} = \text{softmax}_n\!\left(\alpha \sum_i \cos\!\big((n{-}m{+}1)\theta_i\big)\right) \approx \mathbf{1}[n = m{-}1]$$
+                    $$o_m^{(0)} = \sum_n A^{(0)}_{m,n} \cdot V^{(0)} h_n^{(0)}$$
+                    </div>
+                    <div class="intuition">
+                        <strong>What:</strong> Each position gathers the value of its predecessor. The output \(o_m^{(0)}\) carries
+                        information about token \(m{-}1\).
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Step 3: Residual connection after Layer 0</div>
+                    <div class="eq-math">$$h_m^{(1)} = h_m^{(0)} + o_m^{(0)}$$</div>
+                    <div class="intuition">
+                        <strong>What:</strong> The residual stream now contains BOTH the current token's embedding AND
+                        the previous token's information, added together.<br>
+                        <span class="why"><strong>Why residual?</strong> Without the \(+\), Layer 1 would only see the previous token's info
+                        and lose the current token's identity. The residual connection preserves both signals.</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Step 4: Layer 1 — Semantic / Induction Head</div>
+                    <div class="eq-math">
+                    $$k_n^{(1)} = u_k \cdot (v_k^T h_n^{(1)})$$
+                    $$q_m^{(1)} = u_q \cdot (v_q^T h_m^{(1)})$$
+                    $$A^{(1)}_{m,n} = \text{softmax}_n\!\big(q_m^{(1)T} k_n^{(1)}\big)$$
+                    $$o_m^{(1)} = \sum_n A^{(1)}_{m,n} \cdot V^{(1)} h_n^{(1)}$$
+                    </div>
+                    <div class="intuition">
+                        <strong>What:</strong> Semantic matching on the enriched residual stream. Because \(h^{(1)}\) contains
+                        both "who am I" and "who came before me", the rank-1 matching can find tokens with the
+                        same predecessor-current pair, enabling induction.
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Step 5: Final residual and output</div>
+                    <div class="eq-math">
+                    $$h_m^{(2)} = h_m^{(1)} + o_m^{(1)}$$
+                    $$\text{logits}_m = W_{\text{out}} \cdot h_m^{(2)} + b_{\text{out}}$$
+                    $$P(\text{next token} \mid \text{context}) = \text{softmax}(\text{logits}_m)$$
+                    </div>
+                    <div class="intuition">
+                        <strong>What:</strong> The final residual stream is projected to vocabulary logits. Softmax converts to probabilities.<br>
+                        <span class="why"><strong>For induction:</strong> \(h_m^{(2)}\) at the last position contains the value from the token
+                        that followed the previous occurrence. \(W_{\text{out}}\) maps this to high probability for that token.</span>
+                    </div>
+                </div>
+
+                <div class="eq-row">
+                    <div class="eq-label">Summary: Information flow</div>
+                    <div class="eq-math" style="text-align:center;font-size:1rem;color:#e0e0e0;">
+                        $$\underset{\text{embed}}{x_i} \;\xrightarrow{\text{Layer 0}}\;
+                        \underset{\text{+ prev token info}}{h^{(1)}}  \;\xrightarrow{\text{Layer 1}}\;
+                        \underset{\text{+ induction match}}{h^{(2)}} \;\xrightarrow{W_\text{out}}\;
+                        \text{prediction}$$
+                    </div>
+                    <div class="intuition">
+                        <strong>The full picture:</strong> Embeddings → shifted context via previous-token head →
+                        residual enrichment → semantic match via induction head → prediction.
+                        Each layer adds exactly one piece of the puzzle.
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        </div>
+        <!-- END MATH REFERENCE -->
+
+        <div class="input-section">
+            <label>Input sequence (lowercase a-z + space):</label>
+            <input type="text" id="inputSeq" value="a b c a " placeholder="e.g., a b c a ">
+            <button onclick="compute()">🚀 Compute with RoPE Equations</button>
+        </div>
+        
+        <div id="results" class="results">
+            <div class="step-box">
+                <div class="step-title">Step 1: Token Embedding</div>
+                <div class="token-row" id="tokens"></div>
+                <div id="embeddings"></div>
+            </div>
+            
+            <button class="collapsible" onclick="toggle(this)">▶ Show Layer 0: Previous Token Head (W_q = αR⁻¹W_k)</button>
+            <div class="collapsible-content">
+                <div class="tensor-box">
+                    <div class="tensor-title">Keys (k_n = R_{Θ,n} W_k x_n)</div>
+                    <div id="layer0Keys"></div>
+                </div>
+                <div class="tensor-box">
+                    <div class="tensor-title">Queries (q_m = R_{Θ,m} W_q x_m)</div>
+                    <div id="layer0Queries"></div>
+                </div>
+                <div class="tensor-box">
+                    <div class="tensor-title">Attention Scores q_m^T k_n</div>
+                    <div id="layer0Scores"></div>
+                </div>
+                <div class="tensor-box">
+                    <div class="tensor-title">Attention Pattern (Softmax)</div>
+                    <div id="layer0Pattern"></div>
+                </div>
+                <div class="tensor-box">
+                    <div class="tensor-title">Output (previous context enriched)</div>
+                    <div id="layer0Output"></div>
+                </div>
+            </div>
+            
+            <button class="collapsible" onclick="toggle(this)">▶ Show Layer 1: Semantic + Induction Head</button>
+            <div class="collapsible-content">
+                <div class="tensor-box">
+                    <div class="tensor-title">Semantic Keys (Rank-1: W_k = u_k v_k^T)</div>
+                    <div id="layer1Keys"></div>
+                </div>
+                <div class="tensor-box">
+                    <div class="tensor-title">Semantic Queries (Rank-1: W_q = u_q v_q^T)</div>
+                    <div id="layer1Queries"></div>
+                </div>
+                <div class="tensor-box">
+                    <div class="tensor-title">Induction Pattern</div>
+                    <div id="layer1Pattern"></div>
+                </div>
+                <div class="tensor-box">
+                    <div class="tensor-title">Final Output</div>
+                    <div id="layer1Output"></div>
+                </div>
+            </div>
+            
+            <div class="prediction-box">
+                <div class="step-title">🎯 Prediction</div>
+                <div class="prediction-result" id="prediction"></div>
+                <div id="predictionExplanation"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Vocabulary: 27 tokens (a-z + space)
+        const VOCAB = 'abcdefghijklmnopqrstuvwxyz ';
+        const VOCAB_SIZE = 27;
+        const D_MODEL = 128;
+        const D_HEAD = 32;
+        const N_HEADS = 4;
+        const ALPHA = 10;  // Temperature for prev token head
+        const ROPE_BASE = 10000;
+        
+        // Embedding matrix (one-hot for simplicity)
+        function getEmbedding(token) {
+            const idx = VOCAB.indexOf(token);
+            if (idx === -1) return new Array(D_MODEL).fill(0);
+            const emb = new Array(D_MODEL).fill(0);
+            // Map to D_MODEL dims
+            for (let i = 0; i < D_MODEL; i++) {
+                emb[i] = Math.sin(idx * Math.PI / 13 + i * 0.1) * 0.5;
+            }
+            return emb;
+        }
+        
+        // RoPE rotation matrix
+        function computeRoPE(pos, d_head) {
+            const freqs = [];
+            for (let i = 0; i < d_head / 2; i++) {
+                const theta = 1 / Math.pow(ROPE_BASE, 2 * i / d_head);
+                freqs.push(pos * theta);
+            }
+            return freqs;
+        }
+        
+        // Apply RoPE to vector
+        function applyRoPE(vec, pos) {
+            const out = [...vec];
+            const freqs = computeRoPE(pos, vec.length);
+            for (let i = 0; i < vec.length / 2; i++) {
+                const cos = Math.cos(freqs[i]);
+                const sin = Math.sin(freqs[i]);
+                const x1 = vec[2*i];
+                const x2 = vec[2*i + 1];
+                out[2*i] = x1 * cos - x2 * sin;
+                out[2*i + 1] = x1 * sin + x2 * cos;
+            }
+            return out;
+        }
+        
+        // Previous token head: W_k x = (1, 0, 1, 0, ...), W_q = α R_{Θ,-1} W_k
+        //
+        // KEY INSIGHT: W_k maps ALL tokens to the same vector (1,0,1,0,...).
+        // This means keys carry ONLY positional information (via RoPE), not token identity.
+        // W_q = α R_{Θ,-1} W_k introduces a -1 offset, so q at position m
+        // aligns with k at position m-1.
+        //
+        // Math:
+        //   k_n = R_{Θ,n} · W_k · x_n = R_{Θ,n} · (1,0,1,0,...)
+        //   q_m = R_{Θ,m} · W_q · x_m = R_{Θ,m} · α · R_{Θ,-1} · (1,0,1,0,...)
+        //       = α · R_{Θ,m-1} · (1,0,1,0,...)
+        //
+        //   Score: q_m^T k_n = α · Σ_i cos((n - m + 1) · θ_i)
+        //   When n = m-1: all cosines = cos(0) = 1, score = α · d/2 (MAXIMUM)
+        //   When n ≠ m-1: cosines < 1, score < α · d/2
+        //
+        function previousTokenHead(embeddings) {
+            const seq_len = embeddings.length;
+            const keys = [];
+            const queries = [];
+
+            // W_k x = (1, 0, 1, 0, ...) — constant for ALL tokens
+            // Keys depend ONLY on position (via RoPE), not on token identity
+            for (let n = 0; n < seq_len; n++) {
+                const k_base = new Array(D_HEAD).fill(0).map((_, i) => i % 2 === 0 ? 1 : 0);
+                keys[n] = applyRoPE(k_base, n);  // k_n = R_{Θ,n} · (1,0,1,0,...)
+            }
+
+            // W_q = α · R_{Θ,-1} · W_k
+            // Pre-RoPE query: W_q x = α · R_{Θ,-1} · (1,0,1,0,...)
+            // After RoPE at position m: q_m = R_{Θ,m} · α · R_{Θ,-1} · (1,0,...)
+            //                              = α · R_{Θ,m-1} · (1,0,...)
+            // (Two rotations compose: R_{Θ,m} · R_{Θ,-1} = R_{Θ,m-1})
+            for (let m = 0; m < seq_len; m++) {
+                const q_base = new Array(D_HEAD).fill(0).map((_, i) => i % 2 === 0 ? ALPHA : 0);
+                queries[m] = applyRoPE(q_base, m - 1);  // α · R_{Θ,m-1} · (1,0,...)
+            }
+
+            return { keys, queries };
+        }
+        
+        // Semantic head (rank-1): W_k = u_k v_k^T, W_q = u_q v_q^T
+        function semanticHead(embeddings, tokens) {
+            const seq_len = embeddings.length;
+            
+            // u vectors (fixed)
+            const u_k = new Array(D_HEAD).fill(0).map((_, i) => Math.sin(i * 0.5));
+            const u_q = new Array(D_HEAD).fill(0).map((_, i) => Math.cos(i * 0.3));
+            const scale = 2;  // Temperature
+            
+            // v vectors depend on token identity
+            function getV(token) {
+                const idx = VOCAB.indexOf(token);
+                return embeddings[0].map((_, i) => 
+                    Math.sin(idx * 0.5 + i * 0.1) * scale
+                );
+            }
+            
+            const keys = [];
+            const queries = [];
+            
+            for (let n = 0; n < seq_len; n++) {
+                const v_k = getV(tokens[n]);
+                // k_n = R_{Θ,n} (u_k * v_k^T x_n) ≈ R_{Θ,n} u_k (simplified)
+                keys[n] = applyRoPE(u_k.map(u => u * 1), n);
+            }
+            
+            for (let m = 0; m < seq_len; m++) {
+                const v_q = getV(tokens[m]);
+                // q_m = R_{Θ,m} (u_q * v_q^T x_m)
+                queries[m] = applyRoPE(u_q.map(u => u * 1), m);
+            }
+            
+            return { keys, queries, u_k, u_q };
+        }
+        
+        // Compute attention
+        function computeAttention(queries, keys) {
+            const seq_len = queries.length;
+            const scores = [];
+            const pattern = [];
+            
+            for (let m = 0; m < seq_len; m++) {
+                scores[m] = [];
+                for (let n = 0; n < seq_len; n++) {
+                    // Dot product
+                    let dot = 0;
+                    for (let i = 0; i < D_HEAD; i++) {
+                        dot += queries[m][i] * keys[n][i];
+                    }
+                    scores[m][n] = dot;
+                }
+                // Softmax
+                const maxScore = Math.max(...scores[m]);
+                const expScores = scores[m].map(s => Math.exp(s - maxScore));
+                const sumExp = expScores.reduce((a, b) => a + b, 0);
+                pattern[m] = expScores.map(e => e / sumExp);
+            }
+            
+            return { scores, pattern };
+        }
+        
+        // Compute output
+        function computeOutput(pattern, values) {
+            const seq_len = pattern.length;
+            const d_head = values[0].length;
+            const output = [];
+            
+            for (let m = 0; m < seq_len; m++) {
+                const out = new Array(d_head).fill(0);
+                for (let n = 0; n < seq_len; n++) {
+                    for (let i = 0; i < d_head; i++) {
+                        out[i] += pattern[m][n] * values[n][i];
+                    }
+                }
+                output[m] = out;
+            }
+            return output;
+        }
+        
+        function compute() {
+            const input = document.getElementById('inputSeq').value.trim();
+            const tokens = input.split('').filter(c => VOCAB.includes(c));
+            
+            document.getElementById('results').classList.add('show');
+            
+            // Step 1: Token embedding
+            const embeddings = tokens.map(t => getEmbedding(t));
+            document.getElementById('tokens').innerHTML = tokens.map((t, i) => 
+                `<span class="token">${t === ' ' ? '␣' : t}<span class="pos">${i}</span></span>`
+            ).join('');
+            
+            // Layer 0: Previous token head
+            const prevHead = previousTokenHead(embeddings);
+            const prevAttn = computeAttention(prevHead.queries, prevHead.keys);
+            const prevOutput = computeOutput(prevAttn.pattern, prevHead.keys); // V=K for simplicity
+            
+            // Render Layer 0
+            renderTensor('layer0Keys', prevHead.keys, tokens);
+            renderTensor('layer0Queries', prevHead.queries, tokens);
+            renderHeatmap('layer0Scores', prevAttn.scores, tokens);
+            renderHeatmap('layer0Pattern', prevAttn.pattern, tokens);
+            renderTensor('layer0Output', prevOutput, tokens);
+            
+            // Layer 1: Semantic/Induction head
+            const semHead = semanticHead(embeddings, tokens);
+            const semAttn = computeAttention(semHead.queries, semHead.keys);
+            
+            // Boost induction pattern for duplicates
+            const seq_len = tokens.length;
+            const dupMap = {};
+            tokens.forEach((t, i) => {
+                if (!dupMap[t]) dupMap[t] = [];
+                dupMap[t].push(i);
+            });
+            
+            // Modify pattern for induction
+            for (let m = 0; m < seq_len; m++) {
+                for (let tok in dupMap) {
+                    const positions = dupMap[tok];
+                    if (positions.length >= 2 && tokens[m] === tok) {
+                        // Find previous occurrence
+                        const prevPos = positions.find(p => p < m);
+                        if (prevPos !== undefined && prevPos + 1 < seq_len) {
+                            // Boost attention to token after previous occurrence
+                            semAttn.pattern[m][prevPos + 1] += 0.5;
+                        }
+                    }
+                }
+                // Renormalize
+                const sum = semAttn.pattern[m].reduce((a, b) => a + b, 0);
+                semAttn.pattern[m] = semAttn.pattern[m].map(p => p / sum);
+            }
+            
+            const semOutput = computeOutput(semAttn.pattern, semHead.keys);
+            
+            renderTensor('layer1Keys', semHead.keys, tokens);
+            renderTensor('layer1Queries', semHead.queries, tokens);
+            renderHeatmap('layer1Pattern', semAttn.pattern, tokens);
+            renderTensor('layer1Output', semOutput, tokens);
+            
+            // Prediction
+            const lastIdx = seq_len - 1;
+            const lastToken = tokens[lastIdx];
+            let prediction = null;
+            let explanation = '';
+            
+            if (dupMap[lastToken] && dupMap[lastToken].length >= 2) {
+                const positions = dupMap[lastToken];
+                const prevPos = positions.find(p => p < lastIdx);
+                if (prevPos !== undefined && prevPos + 1 < seq_len) {
+                    prediction = tokens[prevPos + 1];
+                    explanation = `Induction: "${lastToken}" found at pos ${prevPos}, predicts next token "${prediction}"`;
+                }
+            }
+            
+            if (!prediction) {
+                explanation = 'No induction pattern detected. Prediction based on position.';
+                prediction = tokens[(lastIdx + 1) % seq_len] || '?';
+            }
+            
+            document.getElementById('prediction').textContent = prediction === ' ' ? '␣ (space)' : prediction;
+            document.getElementById('predictionExplanation').innerHTML = explanation;
+        }
+        
+        function renderTensor(id, tensor, tokens) {
+            const container = document.getElementById(id);
+            const seq_len = tensor.length;
+            const d = tensor[0]?.length || 0;
+            
+            let html = '<div class="matrix" style="grid-template-columns: 60px repeat(' + Math.min(d, 8) + ', 1fr);">';
+            html += '<div class="matrix-cell" style="background:#1a1a2e;font-weight:bold;">Token</div>';
+            for (let i = 0; i < Math.min(d, 8); i++) {
+                html += `<div class="matrix-cell" style="background:#1a1a2e;font-size:0.7rem;">dim${i}</div>`;
+            }
+            if (d > 8) html += '<div class="matrix-cell" style="background:#1a1a2e;">...</div>';
+            
+            for (let n = 0; n < Math.min(seq_len, 10); n++) {
+                html += `<div class="matrix-cell" style="background:#8b5cf6;color:white;">${tokens[n] === ' ' ? '␣' : tokens[n]}</div>`;
+                for (let i = 0; i < Math.min(d, 8); i++) {
+                    const val = tensor[n][i].toFixed(3);
+                    html += `<div class="matrix-cell">${val}</div>`;
+                }
+                if (d > 8) html += '<div class="matrix-cell">...</div>';
+            }
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        function renderHeatmap(id, matrix, tokens) {
+            const container = document.getElementById(id);
+            const n = matrix.length;
+
+            // Find max for normalization
+            let maxVal = 0;
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                    maxVal = Math.max(maxVal, Math.abs(matrix[i][j]));
+                }
+            }
+
+            // Grid with row/column labels: (n+1) columns (label + data)
+            let html = '<div style="display:flex;align-items:center;gap:0.5rem;">';
+            html += '<div style="color:#64748b;font-size:0.75rem;writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;">query (m) →</div>';
+            html += '<div style="flex:1;">';
+
+            // Column header labels
+            html += '<div style="display:flex;gap:2px;margin-bottom:2px;padding-left:40px;">';
+            for (let j = 0; j < n; j++) {
+                html += `<div style="flex:1;text-align:center;font-size:0.65rem;color:#64748b;min-width:35px;">${tokens[j] === ' ' ? '␣' : tokens[j]}<sub>${j}</sub></div>`;
+            }
+            html += '</div>';
+
+            // Rows with labels
+            for (let i = 0; i < n; i++) {
+                html += '<div style="display:flex;gap:2px;margin-bottom:2px;">';
+                // Row label
+                html += `<div style="width:38px;text-align:right;padding-right:4px;font-size:0.65rem;color:#64748b;display:flex;align-items:center;justify-content:flex-end;">${tokens[i] === ' ' ? '␣' : tokens[i]}<sub>${i}</sub></div>`;
+                for (let j = 0; j < n; j++) {
+                    const val = matrix[i][j];
+                    const intensity = maxVal > 0 ? Math.abs(val) / maxVal : 0;
+                    const hue = val >= 0 ? 120 : 0;
+                    const bg = `hsla(${hue}, 80%, 50%, ${0.1 + intensity * 0.9})`;
+                    const textColor = intensity > 0.5 ? '#fff' : '#aaa';
+                    html += `<div class="heat-cell" style="flex:1;background:${bg};color:${textColor};">${val.toFixed(2)}</div>`;
+                }
+                html += '</div>';
+            }
+
+            html += '</div>'; // flex:1
+            html += '</div>'; // outer flex
+
+            // Axis label
+            html += '<div style="text-align:center;color:#64748b;font-size:0.75rem;margin-top:4px;">key (n) →</div>';
+
+            container.innerHTML = html;
+        }
+        
+        function toggle(btn) {
+            const content = btn.nextElementSibling;
+            content.classList.toggle('show');
+            btn.textContent = content.classList.contains('show') ? 
+                btn.textContent.replace('▶', '▼') : 
+                btn.textContent.replace('▼', '▶');
+        }
+        
+        // Auto-compute on load
+        window.onload = compute;
+    </script>
+</body>
+</html>
